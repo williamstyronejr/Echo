@@ -1,3 +1,8 @@
+mod application;
+mod window;
+
+use application::app::Application;
+
 fn main() {
-    println!("Hello, world!");
+    Application::new("Safe Windows App").run();
 }
