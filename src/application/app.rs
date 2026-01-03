@@ -1,3 +1,4 @@
+use crate::platform::set_menu_item;
 use crate::window::Window;
 
 pub struct Application<'a> {
@@ -14,6 +15,9 @@ impl<'a> Application<'a> {
     }
 
     pub fn run(&self) {
+        set_menu_item();
         self.window.show();
+        println!("testing");
+        // Platform Setup
     }
 }

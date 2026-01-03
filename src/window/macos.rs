@@ -1,40 +1,47 @@
+use objc2::define_class;
 use objc2::msg_send;
 use objc2::rc::Retained;
-use objc2::{define_class, ClassType};
-use objc2::{MainThreadMarker, MainThreadOnly};
+use objc2::runtime::ProtocolObject;
+use objc2::{ClassType, MainThreadMarker, MainThreadOnly};
 use objc2_app_kit::{
     NSApp, NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSWindow,
-    NSWindowStyleMask,
+    NSWindowDelegate, NSWindowStyleMask,
 };
+
 use objc2_foundation::{
-    NSAutoreleasePool, NSNotification, NSObject, NSPoint, NSRect, NSSize, NSString,
+    NSAutoreleasePool, NSNotification, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize,
+    NSString,
 };
 
-// For now, use a simple struct that can be used as a placeholder
-// The proper objc2 class definition requires more complex setup
-#[derive(Debug)]
-struct AppDelegate;
+#[derive(Debug, Default)]
+pub struct AppDelegate;
 
-// extern_methods!(
-//     unsafe impl AppDelegate {
-//         #[method(windowWillClose:)]
-//         fn window_will_close(&self, _notification: &NSNotification) {
-//             unsafe {
-//                 let app: *mut NSApplication = msg_send![NSApplication::class(), sharedApplication];
-//                 let _: () = msg_send![app, terminate: None::<&NSObject>];
-//             }
-//         }
-//     }
-// )
+define_class!(
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[ivars = AppDelegate]
+    pub struct WindowDelegate;
 
-//     fn setup_delegate(window: &NSWindow) {
-//         unsafe {
-//             let delegate: Retained<AppDelegate> = AppDelegate::alloc().init();
-//             window.setDelegate(Some(&*delegate));
+    // SAFETY: `NSObjectProtocol` has no safety requirements.
+    unsafe impl NSObjectProtocol for WindowDelegate {}
 
-//             //
-//         }
-//     }
+    // SAFETY: `NSWindowDelegate` has no safety requirements.
+    unsafe impl NSWindowDelegate for WindowDelegate {
+        #[unsafe(method(windowWillClose:))]
+        fn window_will_close(&self, _notification: &NSNotification) {
+            // Quit the application when the window is closed.
+            unsafe { NSApplication::sharedApplication(self.mtm()).terminate(None) };
+        }
+    }
+);
+
+impl WindowDelegate {
+    fn new(mtm: MainThreadMarker) -> Retained<Self> {
+        let this = Self::alloc(mtm).set_ivars(AppDelegate::default());
+        // SAFETY: The signature of `NSObject`'s `init` method is correct.
+        unsafe { msg_send![super(this), init] }
+    }
+}
 
 pub struct Window<'a> {
     title: &'a str,
@@ -82,6 +89,15 @@ fn create_window(mtm: MainThreadMarker) -> Retained<NSWindow> {
             NSBackingStoreType::Buffered,
             false,
         );
+
+        // Add Delegates
+        // let delegate: Retained<WindowDelegate> = Retained::from(WindowDelegate::alloc(mtm));
+        // window.setDelegate(Some(delegate.as_ref().cast::<dyn NSWindowDelegate>()));
+        //
+        let delegate = WindowDelegate::new(mtm);
+        window.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
+
+        // std::mem::forget(delegate);
 
         window
     }

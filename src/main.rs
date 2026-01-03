@@ -1,4 +1,5 @@
 mod application;
+mod platform;
 mod window;
 
 use application::app::Application;
